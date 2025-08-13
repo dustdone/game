@@ -63,7 +63,16 @@ router.post('/register', async (req, res) => {
         });
 
         // 生成JWT令牌
-        const token = generateToken(result);
+        let token;
+        try {
+            token = generateToken(result);
+        } catch (error) {
+            console.error('JWT生成错误:', error);
+            return res.status(500).json({
+                success: false,
+                message: 'JWT令牌生成失败: ' + error.message
+            });
+        }
 
         res.status(201).json({
             success: true,
