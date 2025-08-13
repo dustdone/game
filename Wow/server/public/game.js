@@ -98,28 +98,29 @@ class GameManager {
 
         // 确保游戏数据有默认值
         console.log('检查是否需要设置默认游戏数据，当前level:', this.gameData.level);
-        if (!this.gameData.level) {
-            console.log('设置默认游戏数据');
-            this.gameData = {
-                ...this.gameData,
-                level: 1,
-                exp: 0,
-                gold: 100,
-                health: 100,
-                maxHealth: 100,
-                attack: 10,
-                defense: 5
-            };
-            console.log('设置默认数据后的gameData:', this.gameData);
-        } else {
-            console.log('游戏数据已存在，无需设置默认值');
-        }
+        
+        // 设置默认值，确保所有必要字段都存在
+        this.gameData = {
+            level: 1,
+            exp: 0,
+            gold: 100,
+            health: 100,
+            maxHealth: 100,
+            attack: 10,
+            defense: 5,
+            ...this.gameData // 用API数据覆盖默认值
+        };
+        
+        console.log('设置默认数据后的gameData:', this.gameData);
         
         // 计算升级所需经验
         this.gameData.expToNextLevel = this.calculateExpToNextLevel();
         
         console.log('初始化后的完整gameData:', this.gameData);
         console.log('initGameData完成');
+        
+        // 验证所有必要字段
+        this.validateGameData();
     }
 
     bindEvents() {
@@ -304,6 +305,82 @@ class GameManager {
         this.updateInventoryUI();
     }
 
+    validateGameData() {
+        console.log('🔍 验证游戏数据完整性...');
+        const requiredFields = ['level', 'exp', 'gold', 'health', 'maxHealth', 'attack', 'defense'];
+        const missingFields = [];
+        
+        requiredFields.forEach(field => {
+            if (typeof this.gameData[field] === 'undefined') {
+                missingFields.push(field);
+                console.warn(`⚠️ 缺失字段: ${field}`);
+            } else {
+                console.log(`✅ ${field}: ${this.gameData[field]}`);
+            }
+        });
+        
+        if (missingFields.length > 0) {
+            console.error(`❌ 游戏数据不完整，缺失字段: ${missingFields.join(', ')}`);
+            // 自动修复缺失字段
+            this.fixMissingGameData(missingFields);
+        } else {
+            console.log('🎉 游戏数据完整性验证通过！');
+        }
+    }
+
+    fixMissingGameData(missingFields) {
+        console.log('🔧 开始修复缺失的游戏数据...');
+        const defaultValues = {
+            level: 1,
+            exp: 0,
+            gold: 100,
+            health: 100,
+            maxHealth: 100,
+            attack: 10,
+            defense: 5
+        };
+        
+        missingFields.forEach(field => {
+            if (defaultValues[field] !== undefined) {
+                this.gameData[field] = defaultValues[field];
+                console.log(`🔧 修复字段 ${field}: ${defaultValues[field]}`);
+            }
+        });
+        
+        console.log('修复后的游戏数据:', this.gameData);
+    }
+
+    validateHealthData() {
+        console.log('🔍 验证生命值数据一致性...');
+        
+        const healthElement = document.getElementById('health');
+        const currentHealth = this.gameData.health;
+        const currentMaxHealth = this.gameData.maxHealth;
+        
+        console.log('数据状态:', {
+            gameDataHealth: currentHealth,
+            gameDataMaxHealth: currentMaxHealth,
+            uiDisplay: healthElement ? healthElement.textContent : '元素未找到'
+        });
+        
+        // 检查数据一致性
+        if (currentHealth > currentMaxHealth) {
+            console.warn('⚠️ 当前生命值超过最大生命值，自动修正');
+            this.gameData.health = currentMaxHealth;
+        }
+        
+        if (currentMaxHealth < 100) {
+            console.warn('⚠️ 最大生命值异常低，自动修正');
+            this.gameData.maxHealth = Math.max(100, currentMaxHealth);
+        }
+        
+        // 重新更新UI
+        if (healthElement) {
+            healthElement.textContent = `${this.gameData.health}/${this.gameData.maxHealth}`;
+            console.log('UI已重新更新，新的生命值显示:', healthElement.textContent);
+        }
+    }
+
     async saveGameData() {
         try {
             // 确保所有值都不是undefined
@@ -342,27 +419,50 @@ class GameManager {
     }
 
     updateUI() {
-        // 更新玩家信息 - 添加空值检查
+        console.log('更新UI - 开始');
+        // 更新玩家信息 - 使用正确的HTML元素ID
         const usernameElement = document.getElementById('username');
-        const userLevelElement = document.getElementById('userLevel');
-        const userExpElement = document.getElementById('userExp');
-        const userGoldElement = document.getElementById('userGold');
-        const userHealthElement = document.getElementById('userHealth');
-        const userAttackElement = document.getElementById('userAttack');
-        const userDefenseElement = document.getElementById('userDefense');
+        const levelElement = document.getElementById('userLevel');
+        const expElement = document.getElementById('userExp');
+        const goldElement = document.getElementById('userGold');
+        const healthElement = document.getElementById('health');
+        const attackElement = document.getElementById('attack');
+        const defenseElement = document.getElementById('defense');
+        
+        console.log('找到的HTML元素:', {
+            username: usernameElement,
+            level: levelElement,
+            exp: expElement,
+            gold: goldElement,
+            health: healthElement,
+            attack: attackElement,
+            defense: defenseElement
+        });
         
         if (usernameElement) usernameElement.textContent = this.gameData.username;
-        if (userLevelElement) userLevelElement.textContent = this.gameData.level;
-        if (userExpElement) userExpElement.textContent = `${this.gameData.exp}/${this.gameData.expToNextLevel}`;
-        if (userGoldElement) userGoldElement.textContent = this.gameData.gold;
-        if (userHealthElement) userHealthElement.textContent = `${this.gameData.health}/${this.gameData.maxHealth}`;
-        if (userAttackElement) userAttackElement.textContent = this.gameData.attack;
-        if (userDefenseElement) userDefenseElement.textContent = this.gameData.defense;
+        if (levelElement) levelElement.textContent = this.gameData.level;
+        if (expElement) expElement.textContent = `${this.gameData.exp}/${this.gameData.expToNextLevel}`;
+        if (goldElement) goldElement.textContent = this.gameData.gold;
+        if (healthElement) healthElement.textContent = `${this.gameData.health}/${this.gameData.maxHealth || 100}`;
+        if (attackElement) attackElement.textContent = this.gameData.attack;
+        if (defenseElement) defenseElement.textContent = this.gameData.defense;
+        
+        console.log('UI更新完成，当前游戏数据:', {
+            username: this.gameData.username,
+            level: this.gameData.level,
+            exp: this.gameData.exp,
+            gold: this.gameData.gold,
+            health: this.gameData.health,
+            maxHealth: this.gameData.maxHealth,
+            attack: this.gameData.attack,
+            defense: this.gameData.defense
+        });
         
         // 更新进度条
         const healthBar = document.getElementById('healthBar');
         if (healthBar) {
-            const healthPercent = (this.gameData.health / this.gameData.maxHealth) * 100;
+            const maxHealth = this.gameData.maxHealth || 100;
+            const healthPercent = (this.gameData.health / maxHealth) * 100;
             healthBar.style.width = healthPercent + '%';
             healthBar.className = `progress-bar ${healthPercent > 50 ? 'bg-success' : healthPercent > 25 ? 'bg-warning' : 'bg-danger'}`;
         }
@@ -442,38 +542,110 @@ setInterval(() => {
 
 // 升级系统函数
 function upgradeAttack() {
+    console.log('升级攻击力 - 开始');
     if (gameManager && gameManager.gameData && gameManager.gameData.gold >= 50) {
+        const oldAttack = gameManager.gameData.attack;
+        const oldGold = gameManager.gameData.gold;
+        
         gameManager.gameData.gold -= 50;
         gameManager.gameData.attack += 5;
+        
+        console.log(`升级攻击力 - 成功: ${oldAttack} -> ${gameManager.gameData.attack}, 金币: ${oldGold} -> ${gameManager.gameData.gold}`);
+        
         gameManager.updateUI();
         gameManager.saveGameData();
         gameManager.updateStatus('攻击力升级成功！');
     } else {
+        console.log('升级攻击力 - 失败: 金币不足或游戏未初始化');
         alert('金币不足或游戏未初始化！');
     }
 }
 
 function upgradeDefense() {
+    console.log('升级防御力 - 开始');
     if (gameManager && gameManager.gameData && gameManager.gameData.gold >= 50) {
+        const oldDefense = gameManager.gameData.defense;
+        const oldGold = gameManager.gameData.gold;
+        
         gameManager.gameData.gold -= 50;
         gameManager.gameData.defense += 3;
+        
+        console.log(`升级防御力 - 成功: ${oldDefense} -> ${gameManager.gameData.defense}, 金币: ${oldGold} -> ${gameManager.gameData.gold}`);
+        
         gameManager.updateUI();
         gameManager.saveGameData();
         gameManager.updateStatus('防御力升级成功！');
     } else {
+        console.log('升级防御力 - 失败: 金币不足或游戏未初始化');
         alert('金币不足或游戏未初始化！');
     }
 }
 
 function upgradeHealth() {
+    console.log('升级生命值 - 开始');
+    console.log('升级前的游戏数据:', {
+        gold: gameManager?.gameData?.gold,
+        maxHealth: gameManager?.gameData?.maxHealth,
+        health: gameManager?.gameData?.health
+    });
+    
     if (gameManager && gameManager.gameData && gameManager.gameData.gold >= 50) {
-        gameManager.gameData.gold -= 50;
-        gameManager.gameData.maxHealth += 30;
+        const oldMaxHealth = gameManager.gameData.maxHealth || 100;
+        const oldHealth = gameManager.gameData.health || 100;
+        const oldGold = gameManager.gameData.gold || 100;
+        
+        // 确保数值有效
+        if (typeof oldMaxHealth !== 'number' || typeof oldHealth !== 'number' || typeof oldGold !== 'number') {
+            console.error('升级生命值 - 数据类型错误:', {
+                maxHealth: typeof oldMaxHealth, oldMaxHealth,
+                health: typeof oldHealth, oldHealth,
+                gold: typeof oldGold, oldGold
+            });
+            alert('游戏数据异常，请刷新页面重试！');
+            return;
+        }
+        
+        gameManager.gameData.gold = oldGold - 50;
+        gameManager.gameData.maxHealth = oldMaxHealth + 30;
         gameManager.gameData.health = gameManager.gameData.maxHealth;
+        
+        console.log(`升级生命值 - 成功: 最大生命值 ${oldMaxHealth} -> ${gameManager.gameData.maxHealth}, 当前生命值 ${oldHealth} -> ${gameManager.gameData.health}, 金币: ${oldGold} -> ${gameManager.gameData.gold}`);
+        
+        // 验证升级后的数据
+        console.log('升级后的游戏数据:', {
+            gold: gameManager.gameData.gold,
+            maxHealth: gameManager.gameData.maxHealth,
+            health: gameManager.gameData.health
+        });
+        
         gameManager.updateUI();
         gameManager.saveGameData();
         gameManager.updateStatus('生命值升级成功！');
+        
+        // 再次验证UI更新后的数据
+        setTimeout(() => {
+            console.log('UI更新后的最终数据:', {
+                gold: gameManager.gameData.gold,
+                maxHealth: gameManager.gameData.maxHealth,
+                health: gameManager.gameData.health
+            });
+            
+            // 验证UI是否正确显示
+            const healthElement = document.getElementById('health');
+            if (healthElement) {
+                console.log('UI中的生命值显示:', healthElement.textContent);
+            }
+            
+            // 验证数据一致性
+            this.validateHealthData();
+        }, 100);
     } else {
+        console.log('升级生命值 - 失败: 金币不足或游戏未初始化');
+        console.log('当前状态:', {
+            gameManager: !!gameManager,
+            gameData: !!gameManager?.gameData,
+            gold: gameManager?.gameData?.gold
+        });
         alert('金币不足或游戏未初始化！');
     }
 }

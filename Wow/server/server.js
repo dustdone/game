@@ -14,12 +14,54 @@ const gameRoutes = require('./routes/game');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 获取本机局域网IP
+function getLocalIP() {
+    const os = require('os');
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const interface of interfaces[name]) {
+            if (interface.family === 'IPv4' && !interface.internal) {
+                return interface.address;
+            }
+        }
+    }
+    return '127.0.0.1';
+}
+
+// 获取公网IP（需要网络连接）
+async function getPublicIP() {
+    try {
+        const https = require('https');
+        return new Promise((resolve) => {
+            https.get('https://api.ipify.org?format=json', (res) => {
+                let data = '';
+                res.on('data', (chunk) => data += chunk);
+                res.on('end', () => {
+                    try {
+                        const result = JSON.parse(data);
+                        resolve(result.ip);
+                    } catch (e) {
+                        resolve('无法获取公网IP');
+                    }
+                });
+            }).on('error', () => {
+                resolve('无法获取公网IP');
+            });
+        });
+    } catch (error) {
+        return '无法获取公网IP';
+    }
+}
+
 // 安全中间件
-app.use(helmet());
+// 使用基本的helmet配置，避免复杂的CSP
+app.use(helmet({
+    contentSecurityPolicy: false // 暂时禁用CSP，使用自定义安全头
+}));
 
 // 跨域配置
 const corsOptions = {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5500',
+    origin: process.env.CORS_ORIGIN || '*',
     credentials: true,
     optionsSuccessStatus: 200
 };
@@ -43,11 +85,171 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // 静态文件服务
 app.use(express.static('public'));
 
+// 协议强制中间件
+app.use((req, res, next) => {
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.headers.host;
+    
+    // 强制使用HTTP协议
+    if (protocol === 'https') {
+        const httpUrl = `http://${host}${req.url}`;
+        console.log(`强制HTTPS重定向到HTTP: ${httpUrl}`);
+        return res.redirect(httpUrl);
+    }
+    
+    // 设置安全头，防止HTTPS升级
+    res.setHeader('Strict-Transport-Security', 'max-age=0');
+    res.setHeader('Upgrade-Insecure-Requests', '0');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    
+    next();
+});
+
+// 自定义安全头中间件
+app.use((req, res, next) => {
+    const host = req.headers.host;
+    const isLocalhost = host === 'localhost' || host === 'localhost:5555' || host.startsWith('127.0.0.1');
+    const isPrivateIP = host.match(/^169\.254\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|^192\.168\./);
+    
+    // 设置基本的安全头
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    
+    // 只为可信赖的源设置严格的安全头
+    if (isLocalhost) {
+        // localhost是可信赖的，可以设置严格的安全头
+        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+        res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    } else if (isPrivateIP) {
+        // 私有IP地址，设置较宽松的安全头
+        res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
+        res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    } else {
+        // 公网IP，设置标准安全头
+        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+        res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    }
+    
+    // 设置CSP头（简化版本）
+    res.setHeader('Content-Security-Policy', [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: https:",
+        "connect-src 'self'",
+        "font-src 'self'",
+        "object-src 'none'",
+        "media-src 'self'",
+        "frame-src 'none'",
+        "form-action 'self'"
+    ].join('; '));
+    
+    next();
+});
+
 // 请求日志中间件
 app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${req.method} ${req.path} - ${req.ip}`);
+    const host = req.headers.host;
+    const isLocalhost = host === 'localhost' || host === 'localhost:5555' || host.startsWith('127.0.0.1');
+    const isPrivateIP = host.match(/^169\.254\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|^192\.168\./);
+    
+    console.log(`[${timestamp}] ${req.method} ${req.path} - ${req.ip} (${host})`);
+    console.log(`   - 源类型: ${isLocalhost ? 'localhost(可信赖)' : isPrivateIP ? '私有IP(不可信赖)' : '公网IP(标准安全)'}`);
+    
     next();
+});
+
+// Favicon处理
+app.get('/favicon.ico', (req, res) => {
+    // 返回一个简单的SVG图标
+    const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+        <rect width="100" height="100" fill="#667eea"/>
+        <text x="50" y="65" font-family="Arial" font-size="50" text-anchor="middle" fill="white">🎮</text>
+    </svg>`;
+    
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // 缓存24小时
+    res.send(svgIcon);
+});
+
+// 安全头测试端点
+app.get('/security-headers', (req, res) => {
+    const host = req.headers.host;
+    const isLocalhost = host === 'localhost' || host === 'localhost:5555' || host.startsWith('127.0.0.1');
+    const isPrivateIP = host.match(/^169\.254\.|^10\.|^172\.(1[6-9]|2[0-9]|3[0-1])\.|^192\.168\./);
+    
+    res.json({
+        success: true,
+        message: '安全头信息',
+        timestamp: new Date().toISOString(),
+        request: {
+            host: host,
+            ip: req.ip,
+            userAgent: req.headers['user-agent']
+        },
+        originType: {
+            isLocalhost: isLocalhost,
+            isPrivateIP: isPrivateIP ? true : false,
+            isPublicIP: !isLocalhost && !isPrivateIP,
+            trustLevel: isLocalhost ? 'high' : isPrivateIP ? 'low' : 'medium'
+        },
+        securityHeaders: {
+            'X-Content-Type-Options': res.getHeader('X-Content-Type-Options'),
+            'X-Frame-Options': res.getHeader('X-Frame-Options'),
+            'X-XSS-Protection': res.getHeader('X-XSS-Protection'),
+            'Cross-Origin-Opener-Policy': res.getHeader('Cross-Origin-Opener-Policy'),
+            'Cross-Origin-Embedder-Policy': res.getHeader('Cross-Origin-Embedder-Policy'),
+            'Cross-Origin-Resource-Policy': res.getHeader('Cross-Origin-Resource-Policy'),
+            'Content-Security-Policy': res.getHeader('Content-Security-Policy')
+        },
+        recommendations: {
+            localhost: '使用localhost访问可以获得最严格的安全保护',
+            privateIP: '私有IP访问使用较宽松的安全头，避免浏览器警告',
+            publicIP: '公网IP访问使用标准安全头，平衡安全性和兼容性'
+        }
+    });
+});
+
+// 健康检查端点
+app.get('/health', async (req, res) => {
+    try {
+        const localIP = getLocalIP();
+        const publicIP = await getPublicIP();
+        
+        const protocol = process.env.PROTOCOL || 'http';
+        res.json({
+            success: true,
+            message: '服务器运行正常',
+            timestamp: new Date().toISOString(),
+            server: {
+                port: PORT,
+                protocol: protocol,
+                environment: process.env.NODE_ENV || 'development',
+                localIP: localIP,
+                publicIP: publicIP,
+                localURL: `${protocol}://localhost:${PORT}`,
+                localNetworkURL: `${protocol}://${localIP}:${PORT}`,
+                publicURL: `${protocol}://${publicIP}:${PORT}`,
+                csp: {
+                    formAction: "'self'",
+                    upgradeInsecureRequests: false
+                }
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: '获取服务器信息失败',
+            error: error.message
+        });
+    }
 });
 
 // 根路径 - 登录界面
@@ -59,6 +261,7 @@ app.get('/', (req, res) => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>挂机游戏 - 登录</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
     <style>
         * {
             margin: 0;
@@ -458,7 +661,7 @@ app.get('/', (req, res) => {
         </div>
     </div>
 
-    <script src="/auth.js"></script>
+            <script src="/auth.js"></script>
 </body>
 </html>`;
     
@@ -484,6 +687,7 @@ app.get('/game', (req, res) => {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>挂机游戏 - 主界面</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
     <style>
         * {
             margin: 0;
@@ -919,7 +1123,7 @@ app.get('/game', (req, res) => {
         </footer>
     </div>
 
-    <script src="/game.js"></script>
+            <script src="/game.js"></script>
 
 
 
@@ -1001,13 +1205,18 @@ async function startServer() {
         await initDatabase();
         
         // 启动HTTP服务器
-        const server = app.listen(PORT, () => {
+        const server = app.listen(PORT, '0.0.0.0', async () => {
+            const localIP = getLocalIP();
+            const publicIP = await getPublicIP();
             console.log('🚀 挂机游戏服务器启动成功!');
-            console.log(`📍 服务器地址: http://localhost:${PORT}`);
-            console.log(`🌐 环境: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`📍 本地访问: http://localhost:${PORT}`);
+            console.log(`🌐 局域网访问: http://${localIP}:${PORT}`);
+            console.log(`🌍 外网访问: http://${publicIP}:${PORT}`);
+            console.log(`🔧 环境: ${process.env.NODE_ENV || 'development'}`);
             console.log(`⏰ 启动时间: ${new Date().toLocaleString('zh-CN')}`);
             console.log('📊 API接口:');
             console.log(`   - 健康检查: GET /health`);
+            console.log(`   - 安全头测试: GET /security-headers`);
             console.log(`   - 用户认证: POST /api/auth/login, POST /api/auth/register`);
             console.log(`   - 游戏数据: GET /api/game/data, PUT /api/game/data`);
             console.log(`   - 背包系统: GET /api/game/inventory, POST /api/game/inventory`);

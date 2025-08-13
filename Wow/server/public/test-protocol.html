@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>协议测试页面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .info-box {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .protocol {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .http { color: #007acc; }
+        .https { color: #28a745; }
+        .error { color: #dc3545; }
+        .success { color: #28a745; }
+        .warning { color: #ffc107; }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌐 协议测试页面</h1>
+    
+    <div class="info-box">
+        <h2>当前页面信息</h2>
+        <div class="protocol" id="currentProtocol"></div>
+        <p><strong>URL:</strong> <span id="currentUrl"></span></p>
+        <p><strong>协议:</strong> <span id="protocolType"></span></p>
+        <p><strong>主机:</strong> <span id="currentHost"></span></p>
+        <p><strong>端口:</strong> <span id="currentPort"></span></p>
+    </div>
+
+    <div class="info-box">
+        <h2>协议测试</h2>
+        <button onclick="testHttp()">测试HTTP访问</button>
+        <button onclick="testHttps()">测试HTTPS访问</button>
+        <button onclick="testLocalhost()">测试Localhost</button>
+        <button onclick="testLocalIP()">测试局域网IP</button>
+        <div id="testResults"></div>
+    </div>
+
+    <div class="info-box">
+        <h2>脚本加载测试</h2>
+        <button onclick="loadAuthScript()">加载auth.js</button>
+        <button onclick="loadGameScript()">加载game.js</button>
+        <div id="scriptResults"></div>
+    </div>
+
+    <div class="info-box">
+        <h2>网络状态</h2>
+        <p><strong>在线状态:</strong> <span id="onlineStatus"></span></p>
+        <p><strong>连接类型:</strong> <span id="connectionType"></span></p>
+        <p><strong>有效类型:</strong> <span id="effectiveType"></span></p>
+    </div>
+
+    <script>
+        // 显示当前页面信息
+        function showPageInfo() {
+            const protocol = window.location.protocol;
+            const url = window.location.href;
+            const host = window.location.hostname;
+            const port = window.location.port || (protocol === 'https:' ? '443' : '80');
+            
+            document.getElementById('currentProtocol').textContent = `当前协议: ${protocol}`;
+            document.getElementById('currentProtocol').className = `protocol ${protocol === 'https:' ? 'https' : 'http'}`;
+            document.getElementById('currentUrl').textContent = url;
+            document.getElementById('protocolType').textContent = protocol;
+            document.getElementById('currentHost').textContent = host;
+            document.getElementById('currentPort').textContent = port;
+        }
+
+        // 测试HTTP访问
+        async function testHttp() {
+            const resultDiv = document.getElementById('testResults');
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                resultDiv.innerHTML = `
+                    <div class="test-result success">
+                        ✅ HTTP访问成功<br>
+                        服务器: ${data.server.localURL}<br>
+                        状态: ${data.message}
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ HTTP访问失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 测试HTTPS访问
+        async function testHttps() {
+            const resultDiv = document.getElementById('testResults');
+            try {
+                const httpsUrl = window.location.href.replace('http:', 'https:');
+                const response = await fetch(httpsUrl);
+                resultDiv.innerHTML = `
+                    <div class="test-result warning">
+                        ⚠️ HTTPS访问成功，但应该被重定向到HTTP
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result success">
+                        ✅ HTTPS访问被正确阻止: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 测试Localhost
+        async function testLocalhost() {
+            const resultDiv = document.getElementById('testResults');
+            try {
+                const response = await fetch('http://localhost:5555/health');
+                const data = await response.json();
+                resultDiv.innerHTML = `
+                    <div class="test-result success">
+                        ✅ Localhost访问成功<br>
+                        服务器: ${data.server.localURL}
+                    </div>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Localhost访问失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 测试局域网IP
+        async function testLocalIP() {
+            const resultDiv = document.getElementById('testResults');
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                const localIP = data.server.localIP;
+                
+                if (localIP && localIP !== '127.0.0.1') {
+                    const localResponse = await fetch(`http://${localIP}:5555/health`);
+                    const localData = await localResponse.json();
+                    resultDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ 局域网IP访问成功<br>
+                            IP: ${localIP}<br>
+                            URL: ${localData.server.localNetworkURL}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="test-result warning">
+                            ⚠️ 无法获取局域网IP
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ 局域网IP访问失败: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 加载auth.js脚本
+        function loadAuthScript() {
+            const resultDiv = document.getElementById('scriptResults');
+            try {
+                const script = document.createElement('script');
+                script.src = '/auth.js';
+                script.onload = () => {
+                    resultDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ auth.js加载成功
+                        </div>
+                    `;
+                };
+                script.onerror = () => {
+                    resultDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ auth.js加载失败
+                        </div>
+                    `;
+                };
+                document.head.appendChild(script);
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ 脚本加载错误: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 加载game.js脚本
+        function loadGameScript() {
+            const resultDiv = document.getElementById('scriptResults');
+            try {
+                const script = document.createElement('script');
+                script.src = '/game.js';
+                script.onload = () => {
+                    resultDiv.innerHTML = `
+                        <div class="test-result success">
+                            ✅ game.js加载成功
+                        </div>
+                    `;
+                };
+                script.onerror = () => {
+                    resultDiv.innerHTML = `
+                        <div class="test-result error">
+                            ❌ game.js加载失败
+                        </div>
+                    `;
+                };
+                document.head.appendChild(script);
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ 脚本加载错误: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // 显示网络状态
+        function showNetworkStatus() {
+            document.getElementById('onlineStatus').textContent = navigator.onLine ? '在线' : '离线';
+            
+            if ('connection' in navigator) {
+                document.getElementById('connectionType').textContent = navigator.connection.effectiveType || '未知';
+                document.getElementById('effectiveType').textContent = navigator.connection.effectiveType || '未知';
+            } else {
+                document.getElementById('connectionType').textContent = '不支持';
+                document.getElementById('effectiveType').textContent = '不支持';
+            }
+        }
+
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            showPageInfo();
+            showNetworkStatus();
+            
+            // 监听网络状态变化
+            window.addEventListener('online', showNetworkStatus);
+            window.addEventListener('offline', showNetworkStatus);
+        });
+    </script>
+</body>
+</html> 
