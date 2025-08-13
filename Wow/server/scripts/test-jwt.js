@@ -6,11 +6,22 @@ console.log('🧪 测试JWT库功能...\n');
 try {
     // 1. 检查JWT库版本
     const jwt = require('jsonwebtoken');
-    const packageJson = require('./package.json');
-    const jwtVersion = packageJson.dependencies.jsonwebtoken;
+    const path = require('path');
     
-    console.log(`📦 JWT库版本: ${jwtVersion}`);
-    console.log(`🔧 实际版本: ${require('jsonwebtoken/package.json').version}`);
+    try {
+        const packageJson = require(path.join(__dirname, '..', 'package.json'));
+        const jwtVersion = packageJson.dependencies.jsonwebtoken;
+        console.log(`📦 JWT库版本: ${jwtVersion}`);
+    } catch (error) {
+        console.log('📦 无法读取package.json，跳过版本检查');
+    }
+    
+    try {
+        const jwtPackageJson = require('jsonwebtoken/package.json');
+        console.log(`🔧 实际版本: ${jwtPackageJson.version}`);
+    } catch (error) {
+        console.log('🔧 无法读取JWT包版本信息');
+    }
     
     // 2. 测试基本JWT功能
     console.log('\n🧪 测试基本JWT功能...');
