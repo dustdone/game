@@ -32,25 +32,68 @@ function generateToken(user) {
         throw new Error('JWT_SECRET环境变量未设置');
     }
     
+    // 确保JWT_SECRET是字符串类型
+    const secret = String(process.env.JWT_SECRET);
+    if (!secret || secret.trim() === '') {
+        throw new Error('JWT_SECRET不能为空');
+    }
+    
     // 验证用户对象
-    if (!user || !user.id || !user.username) {
+    if (!user || typeof user !== 'object') {
+        console.error('用户对象验证失败 - 不是对象:', user);
         throw new Error('无效的用户对象');
     }
     
+    console.log('验证用户对象字段:', {
+        hasId: !!user.id,
+        hasUsername: !!user.username,
+        idType: typeof user.id,
+        usernameType: typeof user.username,
+        idValue: user.id,
+        usernameValue: user.username
+    });
+    
+    if (!user.id || !user.username) {
+        console.error('用户对象缺少必要字段:', user);
+        throw new Error('用户对象缺少必要字段');
+    }
+    
+    // 确保用户ID是数字
+    const userId = parseInt(user.id);
+    if (isNaN(userId)) {
+        console.error('用户ID不是有效数字:', user.id);
+        throw new Error('用户ID必须是数字');
+    }
+    
     try {
-        return jwt.sign(
+        console.log('准备生成JWT令牌:', {
+            payload: { id: userId, username: user.username },
+            secret: secret.substring(0, 10) + '...', // 只显示前10个字符
+            expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+        });
+        
+        const token = jwt.sign(
             { 
-                id: user.id, 
-                username: user.username 
+                id: userId, 
+                username: String(user.username) 
             },
-            process.env.JWT_SECRET,
+            secret,
             { 
                 expiresIn: process.env.JWT_EXPIRES_IN || '7d' 
             }
         );
+        
+        console.log('JWT令牌生成成功');
+        return token;
     } catch (error) {
-        console.error('JWT签名错误:', error);
-        throw new Error('JWT令牌生成失败');
+        console.error('JWT签名错误详情:', {
+            error: error.message,
+            stack: error.stack,
+            user: user,
+            secretType: typeof secret,
+            secretLength: secret.length
+        });
+        throw new Error('JWT令牌生成失败: ' + error.message);
     }
 }
 

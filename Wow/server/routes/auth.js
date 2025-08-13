@@ -65,7 +65,13 @@ router.post('/register', async (req, res) => {
         // 生成JWT令牌
         let token;
         try {
-            token = generateToken(result);
+            // 统一用户对象格式
+            const userForToken = {
+                id: result.userId,
+                username: result.username
+            };
+            console.log('注册时传递给generateToken的用户对象:', userForToken);
+            token = generateToken(userForToken);
         } catch (error) {
             console.error('JWT生成错误:', error);
             return res.status(500).json({
@@ -139,6 +145,10 @@ router.post('/login', async (req, res) => {
         );
 
         // 生成JWT令牌
+        console.log('登录时传递给generateToken的用户对象:', {
+            id: user.id,
+            username: user.username
+        });
         const token = generateToken(user);
 
         res.json({

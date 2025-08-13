@@ -1205,10 +1205,12 @@ async function startServer() {
         await initDatabase();
         
         // 启动HTTP服务器
-        const server = app.listen(PORT, '0.0.0.0', async () => {
+        const HOST = process.env.HOST || '0.0.0.0';
+        const server = app.listen(PORT, HOST, async () => {
             const localIP = getLocalIP();
             const publicIP = await getPublicIP();
             console.log('🚀 挂机游戏服务器启动成功!');
+            console.log(`🌐 监听地址: ${HOST}:${PORT}`);
             console.log(`📍 本地访问: http://localhost:${PORT}`);
             console.log(`🌐 局域网访问: http://${localIP}:${PORT}`);
             console.log(`🌍 外网访问: http://${publicIP}:${PORT}`);
