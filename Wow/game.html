@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>挂机游戏 - 主界面</title>
+    <link rel="stylesheet" href="css/game.css">
+</head>
+<body>
+    <div class="game-container">
+        <!-- 顶部导航栏 -->
+        <header class="game-header">
+            <div class="user-info">
+                <span id="username">玩家</span>
+                <span class="level">等级: <span id="userLevel">1</span></span>
+            </div>
+            <div class="game-stats">
+                <span class="stat">经验: <span id="userExp">0</span></span>
+                <span class="stat">金币: <span id="userGold">100</span></span>
+            </div>
+            <button class="logout-btn" onclick="logout()">退出登录</button>
+        </header>
+
+        <!-- 主要内容区域 -->
+        <main class="game-main">
+            <!-- 左侧游戏区域 -->
+            <div class="game-area">
+                <div class="character-info">
+                    <h2>角色信息</h2>
+                    <div class="character-stats">
+                        <div class="stat-item">
+                            <label>生命值:</label>
+                            <span id="health">100/100</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>攻击力:</label>
+                            <span id="attack">10</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>防御力:</label>
+                            <span id="defense">5</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="battle-area">
+                    <h2>战斗区域</h2>
+                    <div class="enemy-info">
+                        <div class="enemy-name" id="enemyName">等待怪物出现...</div>
+                        <div class="enemy-stats">
+                            <span>生命值: <span id="enemyHealth">0/0</span></span>
+                            <span>攻击力: <span id="enemyAttack">0</span></span>
+                        </div>
+                    </div>
+                    <div class="battle-controls">
+                        <button id="startBattle" class="battle-btn">开始战斗</button>
+                        <button id="stopBattle" class="battle-btn" disabled>停止战斗</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧控制面板 -->
+            <div class="control-panel">
+                <div class="upgrade-section">
+                    <h3>升级系统</h3>
+                    <div class="upgrade-item">
+                        <label>攻击力升级</label>
+                        <button onclick="upgradeAttack()" class="upgrade-btn">升级 (花费: 50金币)</button>
+                    </div>
+                    <div class="upgrade-item">
+                        <label>防御力升级</label>
+                        <button onclick="upgradeDefense()" class="upgrade-btn">升级 (花费: 50金币)</button>
+                    </div>
+                    <div class="upgrade-item">
+                        <label>生命值升级</label>
+                        <button onclick="upgradeHealth()" class="upgrade-btn">升级 (花费: 50金币)</button>
+                    </div>
+                </div>
+
+                <div class="inventory-section">
+                    <h3>背包</h3>
+                    <div class="inventory-items" id="inventory">
+                        <div class="empty-inventory">背包空空如也</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 底部状态栏 -->
+        <footer class="game-footer">
+            <div class="status-message" id="statusMessage">欢迎来到挂机游戏！</div>
+        </footer>
+    </div>
+
+    <script src="js/game.js"></script>
+</body>
+</html> 
