@@ -14,6 +14,21 @@ class GameManager {
         ];
         this.currentEnemy = null;
         
+        // 新增：技能系统
+        this.skills = {
+            attack: { name: '强力攻击', cost: 10, cooldown: 0, maxCooldown: 3, icon: '⚔️' },
+            defense: { name: '防御姿态', cost: 15, cooldown: 0, maxCooldown: 5, icon: '🛡️' },
+            heal: { name: '治疗术', cost: 20, cooldown: 0, maxCooldown: 8, icon: '💚' },
+            critical: { name: '暴击强化', cost: 25, cooldown: 0, maxCooldown: 10, icon: '🔥' }
+        };
+        
+        // 新增：战斗状态
+        this.battleState = 'idle'; // idle, fighting, dead
+        
+        // 新增：战斗日志
+        this.battleLog = [];
+        this.maxLogEntries = 50;
+        
         console.log('GameManager构造函数完成，enemies:', this.enemies);
         // 异步初始化
         this.init().catch(error => {
@@ -36,6 +51,8 @@ class GameManager {
         
         // 更新界面
         this.updateUI();
+        this.updateSkillsUI();
+        this.updateBattleStatus();
         
         // 生成第一个怪物
         console.log('准备生成怪物，this.enemies:', this.enemies);
@@ -124,90 +141,179 @@ class GameManager {
     }
 
     bindEvents() {
-        const startBtn = document.getElementById('startBattle');
-        const stopBtn = document.getElementById('stopBattle');
+        // 战斗控制按钮
+        const startBattleBtn = document.getElementById('startBattle');
+        const stopBattleBtn = document.getElementById('stopBattle');
         
-        if (startBtn) {
-            startBtn.addEventListener('click', () => this.startBattle());
+        if (startBattleBtn) {
+            startBattleBtn.addEventListener('click', () => this.startBattle());
         }
         
-        if (stopBtn) {
-            stopBtn.addEventListener('click', () => this.stopBattle());
+        if (stopBattleBtn) {
+            stopBattleBtn.addEventListener('click', () => this.stopBattle());
         }
         
-        // 添加调试信息
-        console.log('绑定事件完成:', {
-            startBtn: startBtn,
-            stopBtn: stopBtn
-        });
+        // 技能按钮
+        const skillAttackBtn = document.getElementById('skillAttack');
+        const skillDefenseBtn = document.getElementById('skillDefense');
+        const skillHealBtn = document.getElementById('skillHeal');
+        const skillCriticalBtn = document.getElementById('skillCritical');
+        
+        if (skillAttackBtn) {
+            skillAttackBtn.addEventListener('click', () => this.useSkill('attack'));
+        }
+        
+        if (skillDefenseBtn) {
+            skillDefenseBtn.addEventListener('click', () => this.useSkill('defense'));
+        }
+        
+        if (skillHealBtn) {
+            skillHealBtn.addEventListener('click', () => this.useSkill('heal'));
+        }
+        
+        if (skillCriticalBtn) {
+            skillCriticalBtn.addEventListener('click', () => this.useSkill('critical'));
+        }
+        
+        // 升级按钮
+        const upgradeAttackBtn = document.getElementById('upgradeAttackBtn');
+        const upgradeDefenseBtn = document.getElementById('upgradeDefenseBtn');
+        const upgradeHealthBtn = document.getElementById('upgradeHealthBtn');
+        
+        if (upgradeAttackBtn) {
+            upgradeAttackBtn.addEventListener('click', () => this.upgradeAttack());
+        }
+        
+        if (upgradeDefenseBtn) {
+            upgradeDefenseBtn.addEventListener('click', () => this.upgradeDefense());
+        }
+        
+        if (upgradeHealthBtn) {
+            upgradeHealthBtn.addEventListener('click', () => this.upgradeHealth());
+        }
+        
+        // 退出登录按钮
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => this.logout());
+        }
     }
 
     startBattle() {
         if (this.isRunning) return;
         
-        this.isRunning = true;
-        document.getElementById('startBattle').textContent = '停止战斗';
-        document.getElementById('startBattle').className = 'btn btn-danger';
+        if (!this.currentEnemy) {
+            this.addBattleLog('没有怪物可以战斗！', 'system');
+            return;
+        }
         
+        this.isRunning = true;
+        this.battleState = 'fighting';
+        this.updateBattleStatus();
+        
+        // 更新按钮状态
+        const startBtn = document.getElementById('startBattle');
+        const stopBtn = document.getElementById('stopBattle');
+        if (startBtn) startBtn.disabled = true;
+        if (stopBtn) stopBtn.disabled = false;
+        
+        this.addBattleLog(`开始与 ${this.currentEnemy.name} 战斗！`, 'system');
+        
+        // 开始战斗循环
         this.battleInterval = setInterval(() => {
             this.battleRound();
         }, 1000);
-        
-        this.updateStatus('战斗开始！');
     }
 
     stopBattle() {
         if (!this.isRunning) return;
         
         this.isRunning = false;
-        clearInterval(this.battleInterval);
-        this.battleInterval = null;
+        this.battleState = 'idle';
+        this.updateBattleStatus();
         
-        document.getElementById('startBattle').textContent = '开始战斗';
-        document.getElementById('startBattle').className = 'btn btn-success';
+        // 更新按钮状态
+        const startBtn = document.getElementById('startBattle');
+        const stopBtn = document.getElementById('stopBattle');
+        if (startBtn) startBtn.disabled = false;
+        if (stopBtn) stopBtn.disabled = true;
         
-        this.updateStatus('战斗已停止');
+        this.addBattleLog('战斗已停止！', 'system');
+        
+        if (this.battleInterval) {
+            clearInterval(this.battleInterval);
+            this.battleInterval = null;
+        }
     }
 
     battleRound() {
-        if (!this.currentEnemy || this.currentEnemy.health <= 0) {
+        if (!this.currentEnemy || !this.gameData) return;
+        
+        // 更新技能冷却
+        this.updateSkillCooldowns();
+        
+        // 玩家攻击怪物
+        let playerDamage = this.calculateDamage(this.gameData.attack, this.currentEnemy.defense || 0);
+        let isCritical = Math.random() < 0.15; // 15%暴击率
+        
+        if (isCritical) {
+            playerDamage = Math.floor(playerDamage * 1.5);
+            this.addBattleLog(`暴击！你对 ${this.currentEnemy.name} 造成了 ${playerDamage} 点伤害！`, 'critical');
+        } else {
+            this.addBattleLog(`你对 ${this.currentEnemy.name} 造成了 ${playerDamage} 点伤害！`, 'attack');
+        }
+        
+        this.currentEnemy.health = Math.max(0, this.currentEnemy.health - playerDamage);
+        
+        // 检查怪物是否死亡
+        if (this.currentEnemy.health <= 0) {
             this.defeatEnemy();
             return;
         }
-
-        // 玩家攻击怪物
-        const playerDamage = Math.max(1, this.gameData.attack - this.currentEnemy.defense);
-        this.currentEnemy.health = Math.max(0, this.currentEnemy.health - playerDamage);
         
         // 怪物攻击玩家
-        if (this.currentEnemy.health > 0) {
-            const enemyDamage = Math.max(1, this.currentEnemy.attack - this.gameData.defense);
+        let enemyDamage = this.calculateDamage(this.currentEnemy.attack, this.gameData.defense);
+        let isDodge = Math.random() < 0.1; // 10%闪避率
+        
+        if (isDodge) {
+            this.addBattleLog(`闪避！你躲过了 ${this.currentEnemy.name} 的攻击！`, 'dodge');
+        } else {
             this.gameData.health = Math.max(0, this.gameData.health - enemyDamage);
-            
-            if (this.gameData.health <= 0) {
-                this.playerDeath();
-                return;
-            }
+            this.addBattleLog(`${this.currentEnemy.name} 对你造成了 ${enemyDamage} 点伤害！`, 'defense');
         }
-
+        
+        // 检查玩家是否死亡
+        if (this.gameData.health <= 0) {
+            this.playerDeath();
+            return;
+        }
+        
         // 更新界面
         this.updateUI();
         this.updateEnemyUI();
+        
+        // 保存游戏数据
+        this.saveGameData();
     }
 
     defeatEnemy() {
+        if (!this.currentEnemy) return;
+        
+        // 停止战斗
+        this.stopBattle();
+        
         // 获得奖励
         this.gameData.exp += this.currentEnemy.exp;
         this.gameData.gold += this.currentEnemy.gold;
         
         // 随机掉落物品
-        if (Math.random() < 0.3) {
-            const items = ['生命药水', '力量药水', '防御药水', '经验药水'];
-            const randomItem = items[Math.floor(Math.random() * items.length)];
-            this.addItemToInventory(randomItem, 1);
+        if (Math.random() < 0.3) { // 30%掉落率
+            const item = this.generateRandomItem();
+            this.addItemToInventory(item);
+            this.addBattleLog(`获得物品：${item.name}！`, 'heal');
         }
         
-        this.updateStatus(`击败了${this.currentEnemy.name}！获得${this.currentEnemy.exp}经验和${this.currentEnemy.gold}金币`);
+        this.addBattleLog(`击败了 ${this.currentEnemy.name}！获得 ${this.currentEnemy.exp} 经验和 ${this.currentEnemy.gold} 金币！`, 'attack');
         
         // 检查升级
         this.checkLevelUp();
@@ -215,57 +321,105 @@ class GameManager {
         // 生成新怪物
         this.generateEnemy();
         
+        // 更新界面
+        this.updateUI();
+        this.updateInventoryUI();
+        
         // 保存游戏数据
         this.saveGameData();
     }
 
     playerDeath() {
+        // 停止战斗
         this.stopBattle();
-        this.gameData.health = this.gameData.maxHealth;
-        this.gameData.gold = Math.max(0, this.gameData.gold - 20);
         
-        this.updateStatus('你被击败了！损失了一些金币，生命值已恢复');
+        // 设置死亡状态
+        this.battleState = 'dead';
+        this.updateBattleStatus();
+        
+        // 扣除金币作为死亡惩罚
+        const deathPenalty = Math.floor(this.gameData.gold * 0.1);
+        this.gameData.gold = Math.max(0, this.gameData.gold - deathPenalty);
+        
+        // 恢复部分生命值
+        this.gameData.health = Math.floor(this.gameData.maxHealth * 0.5);
+        
+        this.addBattleLog(`你被 ${this.currentEnemy.name} 击败了！损失 ${deathPenalty} 金币！`, 'system');
+        this.addBattleLog('生命值恢复至50%！', 'heal');
+        
+        // 生成新怪物
+        this.generateEnemy();
+        
+        // 更新界面
+        this.updateUI();
         
         // 保存游戏数据
         this.saveGameData();
+        
+        // 3秒后恢复战斗状态
+        setTimeout(() => {
+            this.battleState = 'idle';
+            this.updateBattleStatus();
+        }, 3000);
     }
 
     generateEnemy() {
-        // 安全检查
-        if (!this.enemies || !Array.isArray(this.enemies) || this.enemies.length === 0) {
-            console.error('enemies数组未定义或为空:', this.enemies);
-            return;
-        }
-        
-        if (!this.gameData || !this.gameData.level) {
-            console.error('gameData未定义或缺少level:', this.gameData);
+        if (!this.enemies || this.enemies.length === 0) {
+            console.error('enemies数组未定义或为空');
             return;
         }
         
         // 根据玩家等级选择怪物
-        const enemyIndex = Math.min(
-            Math.floor(this.gameData.level / 2),
-            this.enemies.length - 1
-        );
+        let enemyIndex = Math.min(Math.floor(this.gameData.level / 10), this.enemies.length - 1);
+        enemyIndex = Math.max(0, enemyIndex);
         
-        const enemyTemplate = this.enemies[enemyIndex];
-        if (!enemyTemplate) {
-            console.error('无法获取怪物模板:', { enemyIndex, enemies: this.enemies });
-            return;
-        }
-        
+        const baseEnemy = this.enemies[enemyIndex];
         this.currentEnemy = {
-            name: enemyTemplate.name,
-            health: enemyTemplate.maxHealth,
-            maxHealth: enemyTemplate.maxHealth,
-            attack: enemyTemplate.attack,
-            defense: Math.floor(enemyTemplate.attack * 0.3),
-            exp: enemyTemplate.exp,
-            gold: enemyTemplate.gold
+            ...baseEnemy,
+            health: baseEnemy.maxHealth,
+            level: Math.max(1, this.gameData.level - 5 + Math.floor(Math.random() * 10))
         };
         
-        console.log('生成怪物成功:', this.currentEnemy);
+        // 根据等级调整怪物属性
+        const levelMultiplier = 1 + (this.currentEnemy.level - 1) * 0.1;
+        this.currentEnemy.maxHealth = Math.floor(baseEnemy.maxHealth * levelMultiplier);
+        this.currentEnemy.health = this.currentEnemy.maxHealth;
+        this.currentEnemy.attack = Math.floor(baseEnemy.attack * levelMultiplier);
+        this.currentEnemy.exp = Math.floor(baseEnemy.exp * levelMultiplier);
+        this.currentEnemy.gold = Math.floor(baseEnemy.gold * levelMultiplier);
+        
+        this.addBattleLog(`新的怪物出现了：${this.currentEnemy.name} (等级 ${this.currentEnemy.level})！`, 'system');
+        
         this.updateEnemyUI();
+    }
+
+    // 新增：生成随机物品
+    generateRandomItem() {
+        const items = [
+            { name: '生命药水', type: 'consumable', effect: 'health', value: 50 },
+            { name: '力量药水', type: 'consumable', effect: 'attack', value: 5 },
+            { name: '防御药水', type: 'consumable', effect: 'defense', value: 3 },
+            { name: '经验药水', type: 'consumable', effect: 'exp', value: 100 },
+            { name: '金币袋', type: 'consumable', effect: 'gold', value: 25 }
+        ];
+        
+        return items[Math.floor(Math.random() * items.length)];
+    }
+
+    addItemToInventory(item) {
+        if (!this.gameData.inventory) {
+            this.gameData.inventory = [];
+        }
+        
+        const existingItem = this.gameData.inventory.find(invItem => invItem.name === item.name);
+        if (existingItem) {
+            existingItem.quantity++;
+        } else {
+            this.gameData.inventory.push({
+                ...item,
+                quantity: 1
+            });
+        }
     }
 
     checkLevelUp() {
@@ -290,19 +444,6 @@ class GameManager {
 
     calculateExpToNextLevel() {
         return this.gameData.level * 100;
-    }
-
-    addItemToInventory(itemName, quantity) {
-        const existingItem = this.gameData.inventory ? this.gameData.inventory.find(item => item.name === itemName) : null;
-        
-        if (existingItem) {
-            existingItem.quantity += quantity;
-        } else {
-            if (!this.gameData.inventory) this.gameData.inventory = [];
-            this.gameData.inventory.push({ name: itemName, quantity: quantity });
-        }
-        
-        this.updateInventoryUI();
     }
 
     validateGameData() {
@@ -486,36 +627,185 @@ class GameManager {
         if (enemyNameElement) enemyNameElement.textContent = this.currentEnemy.name;
         if (enemyHealthElement) enemyHealthElement.textContent = `${this.currentEnemy.health}/${this.currentEnemy.maxHealth}`;
         if (enemyAttackElement) enemyAttackElement.textContent = this.currentEnemy.attack;
-        if (enemyDefenseElement) enemyDefenseElement.textContent = this.currentEnemy.defense;
+        if (enemyDefenseElement) enemyDefenseElement.textContent = this.currentEnemy.defense || 0;
         
         // 更新怪物血条
         const enemyHealthBar = document.getElementById('enemyHealthBar');
-        if (enemyHealthBar) {
+        const enemyHealthPercent = document.getElementById('enemyHealthPercent');
+        
+        if (enemyHealthBar && enemyHealthPercent) {
             const healthPercent = (this.currentEnemy.health / this.currentEnemy.maxHealth) * 100;
             enemyHealthBar.style.width = healthPercent + '%';
-            enemyHealthBar.className = `progress-bar ${healthPercent > 50 ? 'bg-success' : healthPercent > 25 ? 'bg-warning' : 'bg-danger'}`;
+            enemyHealthPercent.textContent = Math.round(healthPercent) + '%';
+            
+            // 根据血量设置血条颜色
+            enemyHealthBar.className = 'health-bar-fill';
+            if (healthPercent <= 25) {
+                enemyHealthBar.classList.add('low');
+            } else if (healthPercent <= 50) {
+                enemyHealthBar.classList.add('medium');
+            }
         }
     }
 
     updateInventoryUI() {
-        const inventoryList = document.getElementById('inventoryList');
-        if (!inventoryList) return;
+        const inventoryElement = document.getElementById('inventory');
+        if (!inventoryElement) return;
         
-        inventoryList.innerHTML = '';
-        
-        if (this.gameData.inventory && this.gameData.inventory.length > 0) {
-            this.gameData.inventory.forEach(item => {
-                const itemElement = document.createElement('div');
-                itemElement.className = 'inventory-item';
-                itemElement.innerHTML = `
-                    <span class="item-name">${item.name}</span>
-                    <span class="item-quantity">x${item.quantity}</span>
-                `;
-                inventoryList.appendChild(itemElement);
-            });
-        } else {
-            inventoryList.innerHTML = '<p class="text-muted">背包是空的</p>';
+        if (!this.gameData.inventory || this.gameData.inventory.length === 0) {
+            inventoryElement.innerHTML = '<div class="empty-inventory">背包空空如也</div>';
+            return;
         }
+        
+        inventoryElement.innerHTML = this.gameData.inventory.map(item => 
+            `<div class="inventory-item">
+                <span class="item-name">${item.name}</span>
+                <span class="item-quantity">${item.quantity}</span>
+            </div>`
+        ).join('');
+    }
+
+    // 新增：添加战斗日志
+    addBattleLog(message, type = 'system') {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = {
+            message: `[${timestamp}] ${message}`,
+            type: type,
+            timestamp: Date.now()
+        };
+        
+        this.battleLog.unshift(logEntry);
+        
+        // 限制日志条目数量
+        if (this.battleLog.length > this.maxLogEntries) {
+            this.battleLog = this.battleLog.slice(0, this.maxLogEntries);
+        }
+        
+        this.updateBattleLogUI();
+    }
+
+    // 新增：更新战斗日志界面
+    updateBattleLogUI() {
+        const battleLogElement = document.getElementById('battleLog');
+        if (!battleLogElement) return;
+        
+        battleLogElement.innerHTML = this.battleLog.map(entry => 
+            `<div class="log-entry ${entry.type}">${entry.message}</div>`
+        ).join('');
+        
+        // 自动滚动到底部
+        battleLogElement.scrollTop = 0;
+    }
+
+    // 新增：更新战斗状态
+    updateBattleStatus() {
+        const statusIndicator = document.getElementById('battleStatusIndicator');
+        const statusText = document.getElementById('battleStatusText');
+        
+        if (!statusIndicator || !statusText) return;
+        
+        // 移除所有状态类
+        statusIndicator.className = 'status-indicator';
+        statusIndicator.classList.add(this.battleState);
+        
+        // 更新状态文本
+        const statusMessages = {
+            idle: '等待中',
+            fighting: '战斗中',
+            dead: '已阵亡'
+        };
+        
+        statusText.textContent = statusMessages[this.battleState] || '未知状态';
+    }
+
+    // 新增：使用技能
+    useSkill(skillKey) {
+        const skill = this.skills[skillKey];
+        if (!skill) return false;
+        
+        // 检查冷却时间
+        if (skill.cooldown > 0) {
+            this.addBattleLog(`技能 ${skill.name} 还在冷却中！`, 'system');
+            return false;
+        }
+        
+        // 检查金币
+        if (this.gameData.gold < skill.cost) {
+            this.addBattleLog(`金币不足，无法使用 ${skill.name}！`, 'system');
+            return false;
+        }
+        
+        // 扣除金币
+        this.gameData.gold -= skill.cost;
+        
+        // 设置冷却时间
+        skill.cooldown = skill.maxCooldown;
+        
+        // 应用技能效果
+        let effectMessage = '';
+        switch (skillKey) {
+            case 'attack':
+                const attackBonus = Math.floor(this.gameData.attack * 0.5);
+                this.gameData.attack += attackBonus;
+                effectMessage = `攻击力提升 ${attackBonus} 点！`;
+                break;
+            case 'defense':
+                const defenseBonus = Math.floor(this.gameData.defense * 0.5);
+                this.gameData.defense += defenseBonus;
+                effectMessage = `防御力提升 ${defenseBonus} 点！`;
+                break;
+            case 'heal':
+                const healAmount = Math.floor(this.gameData.maxHealth * 0.3);
+                this.gameData.health = Math.min(this.gameData.maxHealth, this.gameData.health + healAmount);
+                effectMessage = `恢复生命值 ${healAmount} 点！`;
+                break;
+            case 'critical':
+                // 暴击率提升（这里简化处理）
+                effectMessage = `暴击率提升！`;
+                break;
+        }
+        
+        this.addBattleLog(`使用技能 ${skill.name}！${effectMessage}`, 'heal');
+        this.updateUI();
+        this.updateSkillsUI();
+        
+        return true;
+    }
+
+    // 新增：更新技能界面
+    updateSkillsUI() {
+        Object.keys(this.skills).forEach(skillKey => {
+            const skillElement = document.getElementById(`skill${skillKey.charAt(0).toUpperCase() + skillKey.slice(1)}`);
+            if (!skillElement) return;
+            
+            const skill = this.skills[skillKey];
+            
+            // 更新冷却时间显示
+            if (skill.cooldown > 0) {
+                skillElement.classList.add('disabled');
+                skillElement.querySelector('.skill-cost').textContent = `冷却: ${skill.cooldown}回合`;
+            } else {
+                skillElement.classList.remove('disabled');
+                skillElement.querySelector('.skill-cost').textContent = `消耗: ${skill.cost}金币`;
+            }
+            
+            // 检查金币是否足够
+            if (this.gameData.gold < skill.cost) {
+                skillElement.classList.add('disabled');
+            } else if (skill.cooldown === 0) {
+                skillElement.classList.remove('disabled');
+            }
+        });
+    }
+
+    // 新增：技能冷却更新
+    updateSkillCooldowns() {
+        Object.values(this.skills).forEach(skill => {
+            if (skill.cooldown > 0) {
+                skill.cooldown--;
+            }
+        });
+        this.updateSkillsUI();
     }
 
     updateStatus(message) {
@@ -530,6 +820,13 @@ class GameManager {
                 statusDiv.className = '';
             }, 3000);
         }
+    }
+
+    // 新增：计算伤害
+    calculateDamage(attack, defense) {
+        const baseDamage = Math.max(1, attack - defense);
+        const variance = Math.random() * 0.4 + 0.8; // 80%-120%的伤害浮动
+        return Math.floor(baseDamage * variance);
     }
 }
 

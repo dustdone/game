@@ -826,67 +826,427 @@ app.get('/game', (req, res) => {
         }
 
         /* 战斗区域 */
+        .battle-area {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .battle-area h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+
+        /* 怪物信息区域 */
         .enemy-info {
             margin-bottom: 20px;
             padding: 20px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
+            background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+            border-radius: 15px;
+            border: 2px solid #feb2b2;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .enemy-info::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #fc8181, #f56565, #e53e3e);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
         }
 
         .enemy-name {
-            font-size: 1.3em;
+            font-size: 1.4em;
             font-weight: 700;
-            color: #dc3545;
+            color: #c53030;
             margin-bottom: 15px;
             text-align: center;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .enemy-stats {
-            display: flex;
-            justify-content: space-around;
-            gap: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
         }
 
-        .enemy-stats span {
+        .enemy-stat-item {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #fed7d7;
+        }
+
+        .enemy-stat-item label {
+            display: block;
+            font-size: 0.9em;
+            color: #744210;
+            margin-bottom: 5px;
             font-weight: 600;
-            color: #495057;
         }
 
+        .enemy-stat-item span {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: #c53030;
+        }
+
+        /* 血条样式优化 */
+        .health-bar-container {
+            margin: 15px 0;
+        }
+
+        .health-bar-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #744210;
+        }
+
+        .health-bar {
+            height: 20px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #cbd5e0;
+            position: relative;
+        }
+
+        .health-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #48bb78, #38a169);
+            border-radius: 8px;
+            transition: width 0.3s ease, background 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .health-bar-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            animation: healthShine 2s infinite;
+        }
+
+        @keyframes healthShine {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .health-bar-fill.low {
+            background: linear-gradient(90deg, #f56565, #e53e3e);
+        }
+
+        .health-bar-fill.medium {
+            background: linear-gradient(90deg, #ed8936, #dd6b20);
+        }
+
+        /* 技能区域 */
+        .skills-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%);
+            border-radius: 15px;
+            border: 2px solid #9ae6b4;
+        }
+
+        .skills-section h3 {
+            color: #22543d;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            text-align: center;
+        }
+
+        .skills-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 15px;
+        }
+
+        .skill-item {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            border: 2px solid #9ae6b4;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .skill-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(34, 84, 61, 0.2);
+        }
+
+        .skill-icon {
+            font-size: 2em;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .skill-name {
+            font-weight: 600;
+            color: #22543d;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .skill-cost {
+            font-size: 0.8em;
+            color: #744210;
+            background: #fef5e7;
+            padding: 2px 6px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .skill-item.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .skill-item.disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* 战斗控制按钮 */
         .battle-controls {
             display: flex;
             gap: 15px;
             justify-content: center;
+            margin: 20px 0;
         }
 
         .battle-btn {
-            padding: 12px 25px;
+            padding: 15px 30px;
             border: none;
-            border-radius: 8px;
+            border-radius: 12px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            font-size: 1em;
+            font-size: 1.1em;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .battle-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .battle-btn:hover::before {
+            left: 100%;
         }
 
         .battle-btn:first-child {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
             color: white;
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.3);
         }
 
         .battle-btn:last-child {
-            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+            background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
             color: white;
+            box-shadow: 0 4px 15px rgba(245, 101, 101, 0.3);
         }
 
         .battle-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
         }
 
         .battle-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+            transform: none;
+        }
+
+        /* 战斗日志区域 */
+        .battle-log-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            border-radius: 15px;
+            border: 2px solid #e2e8f0;
+            max-height: 300px;
+            overflow: hidden;
+        }
+
+        .battle-log-section h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            text-align: center;
+        }
+
+        .battle-log {
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .battle-log::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .battle-log::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .battle-log::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        .battle-log::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        .log-entry {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 6px;
+            font-size: 0.9em;
+            line-height: 1.4;
+            animation: logFadeIn 0.3s ease;
+        }
+
+        @keyframes logFadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-entry.attack {
+            background: #fed7d7;
+            color: #c53030;
+            border-left: 4px solid #f56565;
+        }
+
+        .log-entry.defense {
+            background: #c6f6d5;
+            color: #22543d;
+            border-left: 4px solid #48bb78;
+        }
+
+        .log-entry.heal {
+            background: #bee3f8;
+            color: #2c5282;
+            border-left: 4px solid #4299e1;
+        }
+
+        .log-entry.critical {
+            background: #fed7aa;
+            color: #c05621;
+            border-left: 4px solid #ed8936;
+            font-weight: 600;
+        }
+
+        .log-entry.dodge {
+            background: #e9d8fd;
+            color: #553c9a;
+            border-left: 4px solid #9f7aea;
+            font-style: italic;
+        }
+
+        .log-entry.system {
+            background: #f7fafc;
+            color: #4a5568;
+            border-left: 4px solid #a0aec0;
+            font-style: italic;
+        }
+
+        /* 战斗状态指示器 */
+        .battle-status {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin: 15px 0;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 10px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .status-indicator.fighting {
+            background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
+            color: #c53030;
+        }
+
+        .status-indicator.idle {
+            background: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%);
+            color: #22543d;
+        }
+
+        .status-indicator.dead {
+            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 100%);
+            color: #4a5568;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: statusPulse 2s infinite;
+        }
+
+        .status-dot.fighting {
+            background: #e53e3e;
+        }
+
+        .status-dot.idle {
+            background: #38a169;
+        }
+
+        .status-dot.dead {
+            background: #a0aec0;
+        }
+
+        @keyframes statusPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.2); }
         }
 
         /* 右侧控制面板 */
@@ -1034,6 +1394,10 @@ app.get('/game', (req, res) => {
             .battle-controls {
                 flex-direction: column;
             }
+            
+            .skills-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
     </style>
 </head>
@@ -1076,16 +1440,84 @@ app.get('/game', (req, res) => {
 
                 <div class="battle-area">
                     <h2>战斗区域</h2>
+                    
+                    <!-- 战斗状态指示器 -->
+                    <div class="battle-status">
+                        <div class="status-indicator" id="battleStatusIndicator">
+                            <div class="status-dot idle"></div>
+                            <span id="battleStatusText">等待中</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 怪物信息区域 -->
                     <div class="enemy-info">
                         <div class="enemy-name" id="enemyName">等待怪物出现...</div>
                         <div class="enemy-stats">
-                            <span>生命值: <span id="enemyHealth">0/0</span></span>
-                            <span>攻击力: <span id="enemyAttack">0</span></span>
+                            <div class="enemy-stat-item">
+                                <label>生命值</label>
+                                <span id="enemyHealth">0/0</span>
+                            </div>
+                            <div class="enemy-stat-item">
+                                <label>攻击力</label>
+                                <span id="enemyAttack">0</span>
+                            </div>
+                            <div class="enemy-stat-item">
+                                <label>防御力</label>
+                                <span id="enemyDefense">0</span>
+                            </div>
+                        </div>
+                        
+                        <!-- 怪物血条 -->
+                        <div class="health-bar-container">
+                            <div class="health-bar-label">
+                                <span>怪物血量</span>
+                                <span id="enemyHealthPercent">0%</span>
+                            </div>
+                            <div class="health-bar">
+                                <div class="health-bar-fill" id="enemyHealthBar" style="width: 0%"></div>
+                            </div>
                         </div>
                     </div>
+                    
+                    <!-- 技能区域 -->
+                    <div class="skills-section">
+                        <h3>⚔️ 战斗技能</h3>
+                        <div class="skills-grid">
+                            <div class="skill-item" id="skillAttack">
+                                <div class="skill-icon">⚔️</div>
+                                <div class="skill-name">强力攻击</div>
+                                <div class="skill-cost">消耗: 10金币</div>
+                            </div>
+                            <div class="skill-item" id="skillDefense">
+                                <div class="skill-icon">🛡️</div>
+                                <div class="skill-name">防御姿态</div>
+                                <div class="skill-cost">消耗: 15金币</div>
+                            </div>
+                            <div class="skill-item" id="skillHeal">
+                                <div class="skill-icon">💚</div>
+                                <div class="skill-name">治疗术</div>
+                                <div class="skill-cost">消耗: 20金币</div>
+                            </div>
+                            <div class="skill-item" id="skillCritical">
+                                <div class="skill-icon">🔥</div>
+                                <div class="skill-name">暴击强化</div>
+                                <div class="skill-cost">消耗: 25金币</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 战斗控制按钮 -->
                     <div class="battle-controls">
-                        <button id="startBattle" class="battle-btn">开始战斗</button>
-                        <button id="stopBattle" class="battle-btn" disabled>停止战斗</button>
+                        <button id="startBattle" class="battle-btn">🚀 开始战斗</button>
+                        <button id="stopBattle" class="battle-btn" disabled>⏹️ 停止战斗</button>
+                    </div>
+                    
+                    <!-- 战斗日志区域 -->
+                    <div class="battle-log-section">
+                        <h3>📜 战斗日志</h3>
+                        <div class="battle-log" id="battleLog">
+                            <div class="log-entry system">欢迎来到战斗区域！准备好开始冒险了吗？</div>
+                        </div>
                     </div>
                 </div>
             </div>
